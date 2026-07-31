@@ -384,7 +384,7 @@ img { max-width: 100%; display: block; }
 .product-card img {
   width: 100%; height: 100%; object-fit: cover;
   transition: transform .8s var(--ease), filter .5s var(--ease);
-  opacity: 0;
+  opacity: 1; /* تم التعديل لتظهر فوراً دون أي تأخير مفرط */
 }
 .product-card img.loaded { opacity: 1; }
 .product-card:hover img { transform: scale(1.09); filter: brightness(.85); }
@@ -626,7 +626,7 @@ img { max-width: 100%; display: block; }
   <section id="collection">
     <div class="section-heading">
       <p class="eyebrow">The Collection</p>
-      <h2>𝐀𝑳𝐌𝐔𝐄𝐀𝐖𝐈𝐍</h2>
+      <h2>𝐀𝑳𝑴𝑼𝑬𝑨𝑾𝑰𝑵</h2>
       <div class="gold-divider"></div>
     </div>
     <div id="products-grid" class="products-grid"><!-- injected by script.js --></div>
@@ -642,7 +642,7 @@ img { max-width: 100%; display: block; }
       <div class="product-slider">
         <button class="slider-arrow left" id="slider-prev" aria-label="السابق"><i class="fa-solid fa-chevron-right"></i></button>
         <div class="slider-image-wrap">
-          <img id="product-modal-img" src="" alt="" loading="lazy" />
+          <img id="product-modal-img" src="" alt="" />
         </div>
         <button class="slider-arrow right" id="slider-next" aria-label="التالي"><i class="fa-solid fa-chevron-left"></i></button>
       </div>
@@ -860,13 +860,13 @@ img { max-width: 100%; display: block; }
   });
 
   /* ----------------------------------------------------------
-     Render product grid
+     Render product grid (تم إزالة التحميل البطيء المعوق للصور ووضع الرابط مباشرة)
   ---------------------------------------------------------- */
   const grid = $("#products-grid");
   const cardTpl = (p) => `
-    <div class="product-card" data-id="${p.id}" tabindex="0">
+    <div class="product-card in-view" data-id="${p.id}" tabindex="0">
       <div class="img-wrap">
-        <img data-src="${p.images[0]}" alt="${p.title}" loading="lazy" />
+        <img src="${p.images[0]}" alt="${p.title}" class="loaded" />
         <div class="card-shine"></div>
         <div class="card-view-icon"><i class="fa-solid fa-eye"></i></div>
       </div>
@@ -877,21 +877,15 @@ img { max-width: 100%; display: block; }
     </div>`;
   grid.innerHTML = PRODUCTS.map(cardTpl).join("");
 
-  const lazyImgs = $$("#products-grid img[data-src]");
-  const imgObserver = new IntersectionObserver(
-    (entries, obs) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const img = entry.target;
-          img.src = img.getAttribute("data-src");
-          img.addEventListener("load", () => img.classList.add("loaded"), { once: true });
-          obs.unobserve(img);
-        }
+  // التحميل المسبق (Preload) لباقي صور المنتجات في الخلفية لضمان فتحها فوراً في الـ Modal بدون أي تأخير
+  window.addEventListener("DOMContentLoaded", () => {
+    PRODUCTS.forEach(p => {
+      p.images.forEach(imgUrl => {
+        const preImg = new Image();
+        preImg.src = imgUrl;
       });
-    },
-    { rootMargin: "150px" }
-  );
-  lazyImgs.forEach((img) => imgObserver.observe(img));
+    });
+  });
 
   const cardObserver = new IntersectionObserver(
     (entries, obs) => {
