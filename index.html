@@ -391,7 +391,16 @@
 
     /* Order modal */
     .order-panel { max-width: 460px; text-align: center; }
-    .order-title { color: var(--c-gold-light); margin-bottom: 1.2rem; font-size: 1.2rem; }
+    .order-title { color: var(--c-gold-light); margin-bottom: 1rem; font-size: 1.2rem; }
+    
+    /* Order Modal Preview Box */
+    .order-preview-img-wrap {
+      width: 120px; height: 120px; border-radius: 14px; overflow: hidden;
+      margin: 0 auto 0.8rem; border: 1px solid var(--glass-border); background: #0a0a0a;
+    }
+    .order-preview-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .order-product-desc { color: var(--c-grey-300); font-size: 0.88rem; margin-bottom: 0.8rem; }
+
     .model-badge {
       display: inline-block; margin-right: .4rem; background: rgba(212,175,55,.12);
       border: 1px solid var(--glass-border); color: var(--c-gold-light);
@@ -587,6 +596,16 @@
     <div class="modal glass-panel order-panel">
       <button class="modal-close" id="order-modal-close" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
       <h3 class="order-title">إتمام الطلب <span id="order-model-badge" class="model-badge"></span></h3>
+
+      <!-- Product Preview in Order Modal -->
+      <div class="order-preview-img-wrap">
+        <img id="order-preview-img" src="" alt="" />
+      </div>
+      <p id="order-preview-desc" class="order-product-desc"></p>
+      <div class="product-price-box" style="margin-bottom: 1.2rem;">
+        <span class="price-new">400 ج.م</span>
+        <span class="price-old">500 ج.م</span>
+      </div>
 
       <div class="size-block">
         <p class="field-label">اختر المقاس</p>
@@ -854,6 +873,12 @@
         if (!currentProduct) return;
         closeOverlay(productModal);
         resetOrderForm();
+        
+        // Pass active product image and description into order modal preview
+        $("#order-preview-img").src = currentProduct.images[currentSlide];
+        $("#order-preview-img").alt = currentProduct.title;
+        $("#order-preview-desc").textContent = currentProduct.desc;
+
         $("#order-model-badge").textContent = `#${currentProduct.id}`;
         $("#cust-model").value = `#${currentProduct.id}`;
         openOverlay(orderModal);
