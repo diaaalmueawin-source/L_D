@@ -708,6 +708,21 @@
         };
       });
 
+      // Pre-cache all images in the background so they are instantly loaded and ready without delay
+      function preCacheImages() {
+        PRODUCTS.forEach(p => {
+          p.images.forEach(src => {
+            const img = new Image();
+            img.src = src;
+          });
+        });
+      }
+      if (document.readyState === "complete") {
+        preCacheImages();
+      } else {
+        window.addEventListener("load", preCacheImages);
+      }
+
       const $ = (sel, ctx) => (ctx || document).querySelector(sel);
       const $$ = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
 
@@ -773,7 +788,7 @@
       const cardTpl = (p, index) => `
         <div class="product-card" data-id="${p.id}" tabindex="0">
           <div class="img-wrap">
-            <img src="${p.images[0]}" alt="${p.title}" loading="${index < 4 ? 'eager' : 'lazy'}" ${index < 4 ? 'fetchpriority="high"' : ''} />
+            <img src="${p.images[0]}" alt="${p.title}" loading="eager" fetchpriority="${index < 6 ? 'high' : 'auto'}" />
             <div class="card-shine"></div>
             <div class="card-view-icon"><i class="fa-solid fa-eye"></i></div>
           </div>
@@ -833,6 +848,264 @@
         e.preventDefault();
         currentSlide = (currentSlide - 1 + currentProduct.images.length) % currentProduct.images.length;
         renderSlide();
+      }
+
+      nextBtn.addEventListener("touchstart", handleNextSlide, { passive: false });
+      nextBtn.addEventListener("click", handleNextSlide);
+
+      prevBtn.addEventListener("touchstart", handlePrevSlide, { passive: false });
+      prevBtn.addEventListener("click", handlePrevSlide);
+
+      const productSliderEl = $("#product-slider");
+      let touchStartX = 0;
+      let touchEndX = 0;
+
+      productSliderEl.addEventListener("touchstart", (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+      }, { passive: true });
+
+      productSliderEl.addEventListener("touchend", (e) => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+      }, { passive: true });
+
+      function handleSwipe() {
+        const threshold = 40;
+        if (touchStartX - touchEndX > threshold) {
+          currentSlide = (currentSlide + 1) % currentProduct.images.length;
+          renderSlide();
+        } else if (touchEndX - touchStartX > threshold) {
+          currentSlide = (currentSlide - 1 + currentProduct.images.length) % currentProduct.images.length;
+          renderSlide();
+        }
+      }
+
+      const orderModal = $("#order-modal");
+      const sizeGrid = $("#size-grid");
+      let selectedSize = null;
+
+      $("#buy-now-btn").addEventListener("click", () => {
+        if (!currentProduct) return;
+        closeOverlay(productModal);
+        resetOrderForm();
+        
+        $("#order-preview-img").src = currentProduct.images[currentSlide];
+        $("#order-preview-img").alt = currentProduct.title;
+        $("#order-preview-desc").textContent = currentProduct.desc;
+
+        $("#order-model-badge").textContent = `#${currentProduct.id}`;
+        $("#cust-model").value = `#${currentProduct.id}`;
+        openOverlay(orderModal);
+      });
+
+      $("#order-modal-close").addEventListener("click", () => closeOverlay(orderModal));
+
+      sizeGrid.addEventListener("click", (e) => {
+        const btn = e.target.closest(".size-btn");
+        if (!btn) return;
+        $$(".size-btn").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        selectedSize = btn.dataset.size;
+        hideError("err-size");
+      });
+
+      function resetOrderForm() {
+        selectedSize = null;
+        $$(".size-btn").forEach((b) => b.classList.remove("selected"));
+        $("#order-form").reset();
+        ["err-name", "err-phone", "err-address", "err-size"].forEach(hideError);
+        $$(".field input").forEach((i) => i.classList.remove("invalid"));
+        $("#sending-note").classList.remove("show");
+        $("#submit-order-btn").disabled = false;
+      }
+
+      function showError(id, msg) {
+        const el = document.getElementById(id);
+        el.textContent = msg;
+        el.classList.add("show");
+      }
+      function hideError(id) {
+        const el = document.getElementById(id);
+        el.textContent = "";
+        el.classList.remove("show");
+      }
+
+      const EGYPT_PREFIXES = ["010", "011", "012", "015"];
+
+      function validateOrder() {
+        let valid = true;
+        const name = $("#cust-name").value.trim();
+        const phone = $("#cust-phone").value.trim();
+        const address = $("#cust-address").value.trim();
+
+        if (name.length < 3) {
+          showError("err-name", "يرجى كتابة الاسم بالكامل.");
+          $("#cust-name").classList.add("invalid");
+          valid = false;
+        } else {
+          hideError("err-name");
+          $("#cust-name").classList.remove("invalid");
+        }
+
+        const phoneDigits = phone.replace(/[^0-9]/g, "");
+        const hasValidPrefix = EGYPT_PREFIXES.some((p) => phoneDigits.startsWith(p));
+        if (phoneDigits.length !== 11 || !hasValidPrefix) {
+          showError("err-phone", "رقم الهاتف غير صحيح.");
+          $("#cust-phone").classList.add("invalid");
+          valid = false;
+        } else {
+          hideError("err-phone");
+          $("#cust-phone").classList.remove("invalid");
+        }
+
+        const wordCount = address.split(/\s+/).filter(Boolean).length;
+        if (wordCount < 3) {
+          showError("err-address", "يرجى كتابة عنوان أكثر تفصيلاً.");
+          $("#cust-address").classList.add("invalid");
+          valid = false;
+        } else {
+          hideError("err-address");
+          $("#cust-address").classList.remove("invalid");
+        }
+
+        if (!selectedSize) {
+          showError("err-size", "يرجى اختيار المقاس.");
+          valid = false;
+        } else {
+          hideError("err-size");
+        }
+
+        return valid;
+      }
+
+      $("#order-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!validateOrder()) return;
+
+        const submitBtn = $("#submit-order-btn");
+        submitBtn.disabled = true;
+        $("#sending-note").classList.add("show");
+
+        const orderData = {
+          name: $("#cust-name").value.trim(),
+          phone: $("#cust-phone").value.trim(),
+          address: $("#cust-address").value.trim(),
+          phone2: $("#cust-phone2").value.trim(),
+          model: $("#cust-model").value.trim(),
+          size: selectedSize,
+          time: new Date().toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" }),
+        };
+
+        sendToTelegram(orderData).catch((err) => console.warn("Telegram send failed:", err));
+
+        await new Promise((r) => setTimeout(r, 600));
+
+        $("#sending-note").classList.remove("show");
+        closeOverlay(orderModal);
+        openOverlay($("#success-modal"));
+        launchConfetti();
+      });
+
+      $("#success-close-btn").addEventListener("click", () => closeOverlay($("#success-modal")));
+
+      async function sendToTelegram(order) {
+        const token = CONFIG.BOT_TOKEN;
+        const chatId = CONFIG.CHAT_ID;
+        if (!token || token.includes("PUT_YOUR") || !chatId || String(chatId).includes("PUT_YOUR")) {
+          return;
+        }
+        const text =
+          `★{ۥﹷ۬ﹷۥ𝙉𝙀𝙒 𝙊𝙍𝘿𝙀𝙍ۥﹷ۬ﹷۥ}★✅\n` +
+          `ـــــــــــــــــــــــــــــــــــــــــــــــــــــــــ\n` +
+          `𝙉𝘼𝙈𝙀 : ${order.name}\n` +
+          `العنوان : ${order.address}\n` +
+          `𝙉𝙐𝙈𝘽𝙀𝙍 : ${order.phone}\n` +
+          `𝙉𝙐𝙈𝘽𝙀𝙍 2 : ${order.phone2 || "-"}\n` +
+          `𝙈𝙊𝘿𝙀𝙇 : ${order.model}\n` +
+          `𝙎𝙄𝙕𝙀 : ${order.size}\n` +
+          `𝙏𝙄𝙈𝙀 : ${order.time}\n` +
+          `𝙒𝙀𝘽𝙎𝙄𝙏𝙀 : 𝘼𝙇𝙈𝙐𝙀𝘼𝙒𝙄𝙉 ✅`;
+
+        const url = `https://api.telegram.org/bot${token}/sendMessage`;
+        await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text }),
+        });
+      }
+
+      function launchConfetti() {
+        const canvas = $("#confetti-canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        canvas.style.display = "block";
+
+        const colors = ["#d4af37", "#f1d78a", "#8b0000", "#ffffff", "#b3241e"];
+        const pieces = Array.from({ length: 160 }, () => ({
+          x: Math.random() * canvas.width,
+          y: -20 - Math.random() * canvas.height * 0.3,
+          w: 6 + Math.random() * 6,
+          h: 10 + Math.random() * 8,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          speed: 2 + Math.random() * 3.5,
+          angle: Math.random() * Math.PI * 2,
+          spin: (Math.random() - 0.5) * 0.3,
+          drift: (Math.random() - 0.5) * 2,
+        }));
+
+        let frame = 0;
+        const maxFrames = 220;
+
+        function draw() {
+          frame++;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          pieces.forEach((p) => {
+            p.y += p.speed;
+            p.x += p.drift;
+            p.angle += p.spin;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            ctx.restore();
+          });
+          if (frame < maxFrames) {
+            requestAnimationFrame(draw);
+          } else {
+            canvas.style.display = "none";
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+          }
+        }
+        draw();
+      }
+
+      window.addEventListener("resize", () => {
+        const canvas = $("#confetti-canvas");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      });
+
+      $$(".modal-overlay").forEach((overlay) => {
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) closeOverlay(overlay);
+        });
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          $$(".modal-overlay.active").forEach((o) => closeOverlay(o));
+        }
+      });
+
+      const header = $("#site-header");
+      window.addEventListener("scroll", () => {
+        header.style.background = window.scrollY > 40 ? "rgba(0,0,0,.85)" : "rgba(0,0,0,.55)";
+      });
+    })();
+  </script>
+</body>
+</html>
       }
 
       nextBtn.addEventListener("touchstart", handleNextSlide, { passive: false });
