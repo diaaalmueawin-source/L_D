@@ -726,15 +726,42 @@
       const $ = (sel, ctx) => (ctx || document).querySelector(sel);
       const $$ = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
 
+      // إدارة فتح وإغلاق النوافذ باستخدام تاريخ المتصفح (History API) لزر الرجوع
       function openOverlay(el) {
         el.classList.add("active");
         document.body.style.overflow = "hidden";
+        history.pushState({ modalOpen: true }, "");
       }
+      
       function closeOverlay(el) {
-        el.classList.remove("active");
-        const anyActive = $$(".modal-overlay.active").length > 0;
-        if (!anyActive) document.body.style.overflow = "";
+        if (el.classList.contains("active")) {
+          el.classList.remove("active");
+          const anyActive = $$(".modal-overlay.active").length > 0;
+          if (!anyActive) {
+            document.body.style.overflow = "";
+            // إذا رجعنا للخرائط ولم تعد هناك نوافذ مفتوحة، نرجع حالة التاريخ الطبيعية إذا تطلب الأمر
+          }
+        }
       }
+
+      // الاستماع لحدث زر الرجوع في الهاتف أو المتصفح
+      window.addEventListener("popstate", () => {
+        const activeModals = $$(".modal-overlay.active");
+        if (activeModals.length > 0) {
+          // إغلاق آخر نافذة مفتوحة عند الضغط على زر الرجوع
+          const topModal = activeModals[activeModals.length - 1];
+          topModal.classList.remove("active");
+          
+          if ($(".side-menu").classList.contains("open")) {
+            closeMenuOnly();
+          }
+
+          const anyActiveLeft = $$(".modal-overlay.active").length > 0;
+          if (!anyActiveLeft) {
+            document.body.style.overflow = "";
+          }
+        }
+      });
 
       const welcomeModal = $("#welcome-modal");
       const WELCOME_KEY = "ld_welcomed_v1";
@@ -747,6 +774,7 @@
       $("#welcome-start-btn").addEventListener("click", () => {
         localStorage.setItem(WELCOME_KEY, "1");
         closeOverlay(welcomeModal);
+        history.back(); // إزالة حالة التاريخ المضافة عند الفتح
         document.querySelector("#collection").scrollIntoView({ behavior: "smooth" });
       });
 
@@ -758,12 +786,22 @@
         sideMenu.classList.add("open");
         sideBackdrop.classList.add("open");
         menuToggle.setAttribute("aria-expanded", "true");
+        history.pushState({ menuOpen: true }, "");
       }
-      function closeMenu() {
+
+      function closeMenuOnly() {
         sideMenu.classList.remove("open");
         sideBackdrop.classList.remove("open");
         menuToggle.setAttribute("aria-expanded", "false");
       }
+
+      function closeMenu() {
+        if (sideMenu.classList.contains("open")) {
+          closeMenuOnly();
+          history.back();
+        }
+      }
+
       menuToggle.addEventListener("click", openMenu);
       $("#menu-close").addEventListener("click", closeMenu);
       sideBackdrop.addEventListener("click", closeMenu);
@@ -833,7 +871,10 @@
         if (card) openProduct(Number(card.dataset.id));
       });
 
-      $("#product-modal-close").addEventListener("click", () => closeOverlay(productModal));
+      $("#product-modal-close").addEventListener("click", () => {
+        closeOverlay(productModal);
+        history.back();
+      });
       
       const nextBtn = $("#slider-next");
       const prevBtn = $("#slider-prev");
@@ -886,7 +927,8 @@
 
       $("#buy-now-btn").addEventListener("click", () => {
         if (!currentProduct) return;
-        closeOverlay(productModal);
+        // إغلاق نافذة المنتج وفتح نافذة الأوردر مع تحديث الـ History تدريجياً
+        productModal.classList.remove("active");
         resetOrderForm();
         
         $("#order-preview-img").src = currentProduct.images[currentSlide];
@@ -895,10 +937,14 @@
 
         $("#order-model-badge").textContent = `#${currentProduct.id}`;
         $("#cust-model").value = `#${currentProduct.id}`;
-        openOverlay(orderModal);
+        
+        orderModal.classList.add("active");
       });
 
-      $("#order-modal-close").addEventListener("click", () => closeOverlay(orderModal));
+      $("#order-modal-close").addEventListener("click", () => {
+        closeOverlay(orderModal);
+        history.back();
+      });
 
       sizeGrid.addEventListener("click", (e) => {
         const btn = e.target.closest(".size-btn");
@@ -1001,12 +1047,17 @@
         await new Promise((r) => setTimeout(r, 600));
 
         $("#sending-note").classList.remove("show");
-        closeOverlay(orderModal);
-        openOverlay($("#success-modal"));
+        orderModal.classList.remove("active");
+        
+        const successModal = $("#success-modal");
+        successModal.classList.add("active");
         launchConfetti();
       });
 
-      $("#success-close-btn").addEventListener("click", () => closeOverlay($("#success-modal")));
+      $("#success-close-btn").addEventListener("click", () => {
+        closeOverlay($("#success-modal"));
+        history.back();
+      });
 
       async function sendToTelegram(order) {
         const token = CONFIG.BOT_TOKEN;
@@ -1024,7 +1075,7 @@
           `𝙈𝙊𝘿𝙀𝙇 : ${order.model}\n` +
           `𝙎𝙄𝙕𝙀 : ${order.size}\n` +
           `𝙏𝙄𝙈𝙀 : ${order.time}\n` +
-          `𝙾𝙀𝘽𝙎𝙄𝙏𝙀 : 𝘼𝙇𝙈𝙐𝙀𝘼𝙒𝙄𝙉 ✅`;
+          `𝙾𝙀B𝚂𝙸𝚃𝙀 : 𝘼𝙇𝙈𝙐𝙀𝘼𝙒𝙄𝙉 ✅`;
 
         const url = `https://api.telegram.org/bot${token}/sendMessage`;
         await fetch(url, {
@@ -1089,12 +1140,19 @@
 
       $$(".modal-overlay").forEach((overlay) => {
         overlay.addEventListener("click", (e) => {
-          if (e.target === overlay) closeOverlay(overlay);
+          if (e.target === overlay) {
+            closeOverlay(overlay);
+            history.back();
+          }
         });
       });
+      
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
-          $$(".modal-overlay.active").forEach((o) => closeOverlay(o));
+          $$(".modal-overlay.active").forEach((o) => {
+            closeOverlay(o);
+            history.back();
+          });
         }
       });
 
