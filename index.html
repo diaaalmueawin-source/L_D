@@ -267,9 +267,14 @@
       position: relative; min-height: 100vh;
       display: flex; align-items: center; justify-content: center; text-align: center;
       overflow: hidden; padding-top: 70px;
+      background-color: #000000; /* جعل خلفية القسم سوداء بالكامل */
     }
     .hero-bg {
-      position: absolute; inset: 0; background-size: contain; background-position: center;
+      position: absolute; inset: 0; 
+      background-size: contain;      /* إظهار الصورة بحجمها المتناسق */
+      background-position: center;   /* توسيط الصورة */
+      background-repeat: no-repeat;  /* منع تكرار الصورة نهائياً */
+      background-color: #000000;     /* ضمان أن تكون المساحات الفارغة سوداء */
       filter: brightness(.55) saturate(1.05);
     }
     .hero-overlay {
@@ -298,6 +303,7 @@
       content: ""; position: absolute; top: 8px; left: 50%; width: 4px; height: 8px; margin-left: -2px;
       background: var(--c-gold); border-radius: 3px;
     }
+
 
     /* Collection */
     #collection { padding: 5.5rem 1.2rem 6rem; background: linear-gradient(180deg, #000 0%, #060505 40%, #000 100%); }
